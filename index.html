@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>QR.GEN — Real-time Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Bebas+Neue&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#07080d;
+  --s1:#0d0f17;
+  --s2:#12151f;
+  --s3:#181c28;
+  --border:#1f2535;
+  --border2:#2a3148;
+  --a1:#00f0ff;
+  --a2:#ff2d78;
+  --a3:#ffe033;
+  --a4:#7b61ff;
+  --ok:#00e87a;
+  --warn:#ff8c00;
+  --danger:#ff3333;
+  --text:#dde3f0;
+  --muted:#4a5570;
+  --muted2:#6b7a9a;
+  --fh:'Bebas Neue',sans-serif;
+  --fm:'DM Mono',monospace;
+  --fb:'Outfit',sans-serif;
+  --r:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:var(--fb);min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* grain */
+body::after{
+  content:'';position:fixed;inset:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  pointer-events:none;z-index:9999;
+}
+
+/* blobs */
+.blobs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+.blob{position:absolute;border-radius:50%;filter:blur(140px);opacity:.12;}
+.b1{width:700px;height:700px;background:var(--a1);top:-300px;left:-300px;animation:drift1 20s ease-in-out infinite;}
+.b2{width:600px;height:600px;background:var(--a2);bottom:-200px;right:-200px;animation:drift2 25s ease-in-out infinite;}
+.b3{width:400px;height:400px;background:var(--a4);top:40%;left:30%;animation:drift3 18s ease-in-out infinite;}
+@keyframes drift1{0%,100%{transform:translate(0,0)}50%{transform:translate(80px,60px)}}
+@keyframes drift2{0%,100%{transform:translate(0,0)}50%{transform:translate(-60px,-80px)}}
+@keyframes drift3{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-40px)}}
+
+/* layout */
+.shell{
+  position:relative;z-index:1;
+  display:grid;
+  grid-template-columns:380px 1fr;
+  grid-template-rows:auto 1fr;
+  min-height:100vh;
+}
+
+/* topbar */
+.topbar{
+  grid-column:1/-1;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px;
+  border-bottom:1px solid var(--border);
+  background:rgba(7,8,13,.7);
+  backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:100;
+}
+.logo{font-family:var(--fh);font-size:32px;letter-spacing:2px;color:var(--text);}
+.logo em{color:var(--a1);font-style:normal;}
+.topbar-right{display:flex;align-items:center;gap:16px;}
+.live-badge{
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--fm);font-size:10px;letter-spacing:2px;
+  color:var(--ok);text-transform:uppercase;
+}
+.live-dot{
+  width:6px;height:6px;background:var(--ok);border-radius:50%;
+  animation:livepulse 1.2s ease-in-out infinite;
+}
+@keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.6)}}
+
+/* scan indicator in topbar */
+.scan-indicator{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 14px;border-radius:20px;
+  font-family:var(--fm);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;
+  transition:all .4s;border:1px solid transparent;
+}
+.scan-indicator.idle{border-color:var(--border);color:var(--muted);}
+.scan-indicator.good{border-color:var(--ok);color:var(--ok);background:rgba(0,232,122,.08);box-shadow:0 0 16px rgba(0,232,122,.15);}
+.scan-indicator.bad{border-color:var(--danger);color:var(--danger);background:rgba(255,51,51,.08);box-shadow:0 0 16px rgba(255,51,51,.15);}
+.scan-indicator.warn{border-color:var(--warn);color:var(--warn);background:rgba(255,140,0,.08);}
+.scan-icon{font-size:14px;}
+
+/* left panel */
+.panel{
+  border-right:1px solid var(--border);
+  background:var(--s1);
+  overflow-y:auto;
+  max-height:calc(100vh - 61px);
+  padding:20px 0 40px;
+}
+.panel::-webkit-scrollbar{width:3px;}
+.panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* sections */
+.sec{padding:0 20px 0;}
+.sec+.sec{border-top:1px solid var(--border);margin-top:2px;padding-top:2px;}
+
+.sec-header{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 0 10px;cursor:pointer;
+  user-select:none;
+}
+.sec-num{
+  font-family:var(--fh);font-size:20px;color:var(--a1);
+  min-width:28px;
+}
+.sec-title{font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:var(--muted2);flex:1;}
+.sec-arrow{color:var(--muted);font-size:12px;transition:transform .2s;}
+.sec-body{overflow:hidden;transition:max-height .35s ease,opacity .25s ease;}
+.sec-body.closed{max-height:0!important;opacity:0;}
+.sec-body.open{opacity:1;}
+
+/* field */
+.field{margin-bottom:14px;}
+label{display:block;font-family:var(--fm);font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+
+input[type=text],input[type=url],select{
+  width:100%;background:var(--s2);border:1px solid var(--border);
+  color:var(--text);font-family:var(--fm);font-size:12px;
+  padding:10px 14px;border-radius:var(--r);outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+input:focus,select:focus{border-color:var(--a1);box-shadow:0 0 0 2px rgba(0,240,255,.1);}
+select option{background:#0d0f17;}
+
+/* url row */
+.url-wrap{position:relative;}
+.url-pre{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-family:var(--fm);font-size:11px;color:var(--muted);pointer-events:none;}
+.url-wrap input{padding-left:36px;}
+.url-ok{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:14px;opacity:0;transition:opacity .25s;}
+
+/* colors */
+.color-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.color-block label{margin-bottom:6px;}
+.color-inner{display:flex;align-items:center;gap:8px;}
+input[type=color]{
+  width:36px;height:36px;border:1px solid var(--border);
+  border-radius:8px;background:none;cursor:pointer;padding:3px;flex-shrink:0;
+}
+.hex-in{
+  flex:1;background:var(--s2);border:1px solid var(--border);
+  color:var(--text);font-family:var(--fm);font-size:11px;
+  padding:8px 10px;border-radius:8px;outline:none;
+  transition:border-color .2s;
+}
+.hex-in:focus{border-color:var(--a1);}
+
+/* presets */
+.preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;}
+.preset{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:8px 4px;text-align:center;
+  cursor:pointer;font-family:var(--fm);font-size:10px;color:var(--muted);
+  transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:5px;
+}
+.preset:hover{border-color:var(--a1);color:var(--text);}
+.preset-swatch{width:20px;height:10px;border-radius:3px;}
+
+/* toggle */
+.toggle-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 0;border-bottom:1px solid var(--border);
+}
+.toggle-row:last-child{border:none;}
+.tl{font-size:12px;color:var(--text);}
+.td{font-size:10px;color:var(--muted);margin-top:2px;}
+.sw{position:relative;width:38px;height:20px;}
+.sw input{opacity:0;width:0;height:0;}
+.swt{
+  position:absolute;inset:0;cursor:pointer;
+  background:var(--border2);border-radius:10px;transition:.25s;
+}
+.swt::before{
+  content:'';position:absolute;
+  width:14px;height:14px;left:3px;bottom:3px;
+  background:var(--muted);border-radius:50%;transition:.25s;
+}
+input:checked+.swt{background:var(--a1);}
+input:checked+.swt::before{transform:translateX(18px);background:#000;}
+
+/* pills */
+.pill-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px;}
+.pill{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:8px;padding:9px 6px;text-align:center;
+  cursor:pointer;font-family:var(--fm);font-size:10px;color:var(--muted);
+  transition:all .2s;user-select:none;
+}
+.pill:hover{border-color:var(--a1);color:var(--text);}
+.pill.on{border-color:var(--a1);background:rgba(0,240,255,.07);color:var(--a1);}
+
+/* EC badges */
+.ec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px;}
+.ecb{
+  border:1px solid var(--border);border-radius:8px;
+  padding:10px 4px;text-align:center;cursor:pointer;
+  transition:all .2s;user-select:none;
+}
+.ecb .el{font-family:var(--fh);font-size:22px;transition:color .2s;}
+.ecb .ep{font-family:var(--fm);font-size:10px;color:var(--muted);margin-top:2px;}
+.ecb .en{font-family:var(--fm);font-size:9px;color:var(--muted);margin-top:1px;letter-spacing:.5px;}
+.ecb.on{border-color:var(--a3);background:rgba(255,224,51,.06);}
+.ecb.on .el{color:var(--a3);}
+.ecb.on .ep,.ecb.on .en{color:var(--a3);}
+
+/* sliders */
+.slider-field{margin-bottom:14px;}
+.slider-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.slider-top label{margin:0;}
+.sv{font-family:var(--fm);font-size:11px;color:var(--a1);}
+input[type=range]{
+  width:100%;height:3px;-webkit-appearance:none;
+  background:var(--border2);border-radius:2px;outline:none;cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;
+  background:var(--a1);border-radius:50%;
+  box-shadow:0 0 6px var(--a1);transition:transform .15s;
+}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.4);}
+
+/* dot module special */
+.dot-preview-canvas{
+  width:100%;height:80px;border-radius:8px;
+  background:var(--s2);border:1px solid var(--border);
+  display:block;margin-bottom:14px;
+}
+
+/* file drop */
+.drop{
+  border:2px dashed var(--border2);border-radius:10px;
+  padding:20px 14px;text-align:center;cursor:pointer;
+  position:relative;overflow:hidden;transition:all .25s;
+  margin-bottom:14px;
+}
+.drop:hover,.drop.drag{border-color:var(--a1);background:rgba(0,240,255,.04);}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.drop-icon{font-size:26px;margin-bottom:6px;}
+.drop-title{font-size:12px;color:var(--text);}
+.drop-sub{font-size:10px;color:var(--muted);margin-top:3px;}
+.drop-prev{display:none;width:50px;height:50px;border-radius:6px;object-fit:cover;margin:0 auto 6px;border:2px solid var(--a1);}
+.drop-prev.show{display:block;}
+
+/* shape btns */
+.shape-row{display:flex;gap:8px;margin-bottom:14px;}
+.shapebtn{
+  flex:1;padding:9px;background:var(--s2);
+  border:1px solid var(--border);border-radius:8px;
+  font-family:var(--fm);font-size:10px;color:var(--muted);
+  cursor:pointer;text-align:center;transition:all .2s;
+}
+.shapebtn:hover{border-color:var(--a1);color:var(--text);}
+.shapebtn.on{border-color:var(--a1);color:var(--a1);background:rgba(0,240,255,.07);}
+
+/* generate btn */
+.gen-btn{
+  width:calc(100% - 40px);margin:16px 20px 0;
+  padding:14px;
+  background:linear-gradient(135deg,var(--a1),var(--a4));
+  border:none;border-radius:10px;
+  color:#000;font-family:var(--fh);font-size:18px;letter-spacing:2px;
+  cursor:pointer;position:relative;overflow:hidden;
+  transition:transform .15s,box-shadow .2s;
+}
+.gen-btn:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,240,255,.25);}
+.gen-btn:active{transform:translateY(0);}
+.gen-btn.spinning::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.25) 50%,transparent 100%);
+  animation:sweep .8s infinite;
+}
+@keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+
+/* ── RIGHT PANEL ── */
+.stage{
+  display:flex;flex-direction:column;
+  background:var(--bg);
+  overflow-y:auto;
+  max-height:calc(100vh - 61px);
+}
+
+.preview-wrap{
+  flex:1;display:flex;align-items:center;justify-content:center;
+  padding:32px;position:relative;
+}
+
+/* QR canvas container */
+.qr-frame{
+  position:relative;
+  width:min(480px, calc(100vw - 420px));
+  aspect-ratio:1;
+}
+.qr-canvas{
+  width:100%;height:100%;
+  border-radius:12px;
+  display:block;
+  image-rendering:pixelated;
+}
+.qr-placeholder{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border-radius:12px;background:var(--s1);border:1px solid var(--border);
+  color:var(--muted);gap:12px;
+}
+.qr-placeholder .ph{font-size:64px;animation:pulseglow 2s ease-in-out infinite;}
+@keyframes pulseglow{0%,100%{opacity:.3;filter:blur(0)}50%{opacity:.8;filter:blur(1px)}}
+.qr-placeholder p{font-family:var(--fm);font-size:11px;letter-spacing:2px;text-transform:uppercase;}
+
+/* loading overlay */
+.loading-overlay{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(7,8,13,.75);border-radius:12px;
+  opacity:0;pointer-events:none;transition:opacity .2s;z-index:10;
+}
+.loading-overlay.show{opacity:1;}
+.spinner{
+  width:40px;height:40px;border:3px solid var(--border2);
+  border-top-color:var(--a1);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* scan meter */
+.scan-meter{
+  padding:20px 28px;
+  border-top:1px solid var(--border);
+  background:var(--s1);
+}
+.meter-title{font-family:var(--fm);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+.meter-body{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px;}
+.mstat{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px;}
+.mstat .ml{font-family:var(--fm);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;}
+.mstat .mv{font-size:15px;font-weight:700;color:var(--text);}
+.mstat.c1 .mv{color:var(--a1);}
+.mstat.c2 .mv{color:var(--a3);}
+.mstat.c3 .mv{color:var(--a4);}
+
+/* scanability bar */
+.scanbar-wrap{margin-bottom:10px;}
+.scanbar-labels{display:flex;justify-content:space-between;margin-bottom:6px;}
+.scanbar-labels span{font-family:var(--fm);font-size:10px;color:var(--muted);}
+.scanbar-track{height:6px;background:var(--border2);border-radius:3px;overflow:hidden;position:relative;}
+.scanbar-fill{
+  height:100%;border-radius:3px;
+  transition:width .5s cubic-bezier(.4,0,.2,1),background .4s;
+}
+.scan-verdict{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;border-radius:8px;
+  font-family:var(--fm);font-size:11px;letter-spacing:.5px;
+  margin-top:10px;transition:all .4s;border:1px solid transparent;
+}
+.scan-verdict.good{border-color:rgba(0,232,122,.3);background:rgba(0,232,122,.07);color:var(--ok);}
+.scan-verdict.warn{border-color:rgba(255,140,0,.3);background:rgba(255,140,0,.06);color:var(--warn);}
+.scan-verdict.bad{border-color:rgba(255,51,51,.3);background:rgba(255,51,51,.07);color:var(--danger);}
+.scan-verdict.idle{border-color:var(--border);color:var(--muted);}
+
+/* bottom bar */
+.bottom-bar{
+  padding:16px 28px;
+  border-top:1px solid var(--border);
+  display:flex;gap:12px;align-items:center;
+}
+.dl-btn{
+  flex:1;padding:11px;
+  background:transparent;border:1px solid var(--a1);
+  border-radius:8px;color:var(--a1);
+  font-family:var(--fm);font-size:11px;letter-spacing:1px;
+  cursor:pointer;transition:all .2s;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  opacity:.35;pointer-events:none;
+}
+.dl-btn.on{opacity:1;pointer-events:all;}
+.dl-btn.on:hover{background:rgba(0,240,255,.1);}
+.auto-badge{
+  font-family:var(--fm);font-size:9px;letter-spacing:1px;
+  color:var(--ok);border:1px solid rgba(0,232,122,.3);
+  padding:4px 10px;border-radius:12px;text-transform:uppercase;
+  white-space:nowrap;
+}
+
+/* toast */
+.toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+  background:var(--danger);color:#fff;
+  padding:10px 22px;border-radius:8px;
+  font-family:var(--fm);font-size:11px;z-index:9998;
+  opacity:0;pointer-events:none;
+  transition:opacity .3s,transform .3s;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-8px);}
+
+@media(max-width:860px){
+  .shell{grid-template-columns:1fr;grid-template-rows:auto auto auto;}
+  .panel{max-height:none;border-right:none;border-bottom:1px solid var(--border);}
+  .stage{max-height:none;}
+  .qr-frame{width:min(400px,90vw);}
+}
+</style>
+</head>
+<body>
+<div class="blobs"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
+
+<div class="shell">
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="logo">QR<em>.</em>GEN</div>
+  <div class="topbar-right">
+    <div class="scan-indicator idle" id="topScan">
+      <span class="scan-icon">◈</span>
+      <span id="topScanText">Waiting for QR</span>
+    </div>
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+  </div>
+</header>
+
+<!-- LEFT PANEL -->
+<aside class="panel" id="panel">
+
+  <!-- 01 URL -->
+  <div class="sec">
+    <div class="sec-header" onclick="toggleSec(this)">
+      <span class="sec-num">01</span>
+      <span class="sec-title">Target URL</span>
+      <span class="sec-arrow">▾</span>
+    </div>
+    <div class="sec-body open" style="max-height:200px">
+      <div class="field">
+        <label>Website Address</label>
+        <div class="url-wrap">
+          <span class="url-pre">🌐</span>
+          <input type="url" id="urlInput" placeholder="https://yourwebsite.com" autocomplete="off" oninput="onUrlChange()"/>
+          <span class="url-ok" id="urlOk"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 02 EC -->
+  <div class="sec">
+    <div class="sec-header" onclick="toggleSec(this)">
+      <span class="sec-num">02</span>
+      <span class="sec-title">Error Correction</span>
+      <span class="sec-arrow">▾</span>
+    </div>
+    <div class="sec-body open" style="max-height:180px">
+      <div class="ec-grid">
+        <div class="ecb" data-ec="L" onclick="pickEC(this)"><div class="el">L</div><div class="ep">7%</div><div class="en">Low</div></div>
+        <div class="ecb" data-ec="M" onclick="pickEC(this)"><div class="el">M</div><div class="ep">15%</div><div class="en">Med</div></div>
+        <div class="ecb" data-ec="Q" onclick="pickEC(this)"><div class="el">Q</div><div class="ep">25%</div><div class="en">Qrt</div></div>
+        <div class="ecb on" data-ec="H" onclick="pickEC(this)"><div class="el">H</div><div class="ep">30%</div><div class="en">High</div></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--fm);line-height:1.7;margin-bottom:12px;">
+        Use <strong style="color:var(--a3)">H</strong> when embedding an image — allows 30% occlusion.
+      </div>
+      <input type="hidden" id="ecLevel" value="H"/>
+    </div>
+  </div>
+
+  <!-- 03 COLOURS -->
+  <div class="sec">
+    <div class="sec-header" onclick="toggleSec(this)">
+      <span class="sec-num">03</span>
+      <span class="sec-title">Colours</span>
+      <span class="sec-arrow">▾</span>
+    </div>
+    <div class="sec-body open" style="max-height:360px">
+      <div class="color-pair">
+        <div class="color-block">
+          <label>Foreground</label>
+          <div class="color-inner">
+            <input type="color" id="fgPick" value="#000000" oninput="syncColor('fg');triggerRegen()"/>
+            <input type="text" class="hex-in" id="fgHex" value="#000000" maxlength="7" oninput="syncHex('fg');triggerRegen()"/>
+          </div>
+        </div>
+        <div class="color-block">
+          <label>Background</label>
+          <div class="color-inner">
+            <input type="color" id="bgPick" value="#ffffff" oninput="syncColor('bg');triggerRegen()"/>
+            <input type="text" class="hex-in" id="bgHex" value="#ffffff" maxlength="7" oninput="syncHex('bg');triggerRegen()"/>
+          </div>
+        </div>
+      </div>
+      <label>Quick Presets</label>
+      <div class="preset-grid">
+        <div class="preset" onclick="applyPreset('#000000','#ffffff')"><div class="preset-swatch" style="background:linear-gradient(90deg,#000 50%,#fff 50%);border:1px solid #333"></div>Classic</div>
+        <div class="preset" onclick="applyPreset('#ffffff','#000000')"><div class="preset-swatch" style="background:linear-gradient(90deg,#fff 50%,#000 50%);border:1px solid #333"></div>Dark</div>
+        <div class="preset" onclick="applyPreset('#00f0ff','#07080d')"><div class="preset-swatch" style="background:linear-gradient(90deg,#00f0ff 50%,#07080d 50%)"></div>Cyber</div>
+        <div class="preset" onclick="applyPreset('#ff2d78','#1a001a')"><div class="preset-swatch" style="background:linear-gradient(90deg,#ff2d78 50%,#1a001a 50%)"></div>Neon</div>
+        <div class="preset" onclick="applyPreset('#ffe033','#0a0800')"><div class="preset-swatch" style="background:linear-gradient(90deg,#ffe033 50%,#0a0800 50%)"></div>Gold</div>
+        <div class="preset" onclick="applyPreset('#00e87a','#00100a')"><div class="preset-swatch" style="background:linear-gradient(90deg,#00e87a 50%,#00100a 50%)"></div>Matrix</div>
+      </div>
+      <div class="toggle-row">
+        <div><div class="tl">Gradient Fade</div><div class="td">Top-to-bottom module fade</div></div>
+        <label class="sw"><input type="checkbox" id="gradTog" onchange="triggerRegen()"/><span class="swt"></span></label>
+      </div>
+    </div>
+  </div>
+
+  <!-- 04 MODULE STYLE -->
+  <div class="sec">
+    <div class="sec-header" onclick="toggleSec(this)">
+      <span class="sec-num">04</span>
+      <span class="sec-title">Module Style</span>
+      <span class="sec-arrow">▾</span>
+    </div>
+    <div class="sec-body open" style="max-height:160px">
+      <div class="pill-grid" id="styleGrid">
+        <div class="pill on" data-s="rounded" onclick="pickStyle(this)">Rounded</div>
+        <div class="pill" data-s="square"  onclick="pickStyle(this)">Square</div>
+        <div class="pill" data-s="circle"  onclick="pickStyle(this)">Circle</div>
+        <div class="pill" data-s="gapped"  onclick="pickStyle(this)">Gapped</div>
+        <div class="pill" data-s="horizontal" onclick="pickStyle(this)">H-Bars</div>
+        <div class="pill" data-s="vertical"   onclick="pickStyle(this)">V-Bars</div>
+      </div>
+      <input type="hidden" id="styleVal" value="rounded"/>
+    </div>
+  </div>
+
+  <!-- 05 DOT CONTROLS (NEW) -->
+  <div class="sec">
+    <div class="sec-header" onclick="toggleSec(this)">
+      <span class="sec-num">05</span>
+      <span class="sec-title">Dot / Datapoint Controls</span>
+      <span class="sec-arrow">▾</span>
+    </div>
+    <div class="sec-body open" style="max-height:480px">
+      <canvas class="dot-preview-canvas" id="dotPreview"></canvas>
+
+      <div class="slider-field">
+        <div class="slider-top"><label>Dot Size</label><span class="sv" id="dotSizeV">85%</span></div>
+        <input type="range" id="dotSize" min="20" max="100" value="85" oninput="updateDotPreview();triggerRegen()"/>
+      </div>
+      <div class="slider-field">
+        <div class="slider-top"><label>Gap Between Dots</label><span class="sv" id="dotGapV">8%</span></div>
+        <input type="range" id="dotGap" min="0" max="40" value="8" oninput="updateDotPreview();triggerRegen()"/>
+      </div>
+      <div class="slider-field">
+        <div class="slider-top"><label>Module Opacity</label><span class="sv" id="dotOpV">100%</span></div>
+        <input type="range" id="dotOp" min="10" max="100" value="100" oninput="updateDotPreview();triggerRegen()"/>
+      </div>
+
+      <div class="field">
+        <label>Dot Tint / Override Color</label>
+        <div class="color-inner">
+          <input type="color" id="dotColorPick" value="#000000" oninput="syncDotColor();updateDotPreview();triggerRegen()"/>
+          <input type="text" class="hex-in" id="dotColorHex" value="#000000" maxlength="7" oninput="syncDotColorHex();updateDotPreview();triggerRegen()"/>
+          <label class="sw" style="margin-left:8px" title="Use dot color override">
+            <input type="checkbox" id="dotColorOn" onchange="updateDotPreview();triggerRegen()"/>
+            <span class="swt"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="slider-field">
+        <div class="slider-top"><label>Output Size</label><span class="sv" id="sizeV">900 px</span></div>
+        <input type="range" id="sizeSlider" min="400" max="2000" step="100" value="900" oninput="document.getElementById('sizeV').textContent=this.value+' px';triggerRegen()"/>
+      </div>
+      <div class="slider-field">
+        <div class="slider-top"><label>Quiet-Zone Border</label><span class="sv" id="borderV">4 mod</span></div>
+        <input type="range" id="borderSlider" min="1" max="10" value="4" oninput="document.getElementById('borderV').textContent=this.value+' mod';triggerRegen()"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- 06 IMAGE OVERLAY -->
+  <div class="sec">
+    <div class="sec-header" onclick="toggleSec(this)">
+      <span class="sec-num">06</span>
+      <span class="sec-title">Logo Overlay</span>
+      <span class="sec-arrow">▾</span>
+    </div>
+    <div class="sec-body open" style="max-height:340px">
+      <div class="drop" id="dropZone">
+        <input type="file" id="ovFile" accept="image/*" onchange="previewOv(this)"/>
+        <img class="drop-prev" id="dropPrev" src="" alt=""/>
+        <div class="drop-icon" id="dropIcon">🖼️</div>
+        <div class="drop-title" id="dropTitle">Drop image or click</div>
+        <div class="drop-sub" id="dropSub">Auto-cropped 1:1 · PNG, JPG, WEBP</div>
+      </div>
+      <div class="slider-field">
+        <div class="slider-top"><label>Overlay Size</label><span class="sv" id="ovSizeV">28%</span></div>
+        <input type="range" id="ovSize" min="10" max="45" value="28" oninput="document.getElementById('ovSizeV').textContent=this.value+'%';triggerRegen()"/>
+      </div>
+      <label>Shape</label>
+      <div class="shape-row">
+        <button class="shapebtn on" data-sh="circle" onclick="pickShape(this)">⬤ Circle</button>
+        <button class="shapebtn" data-sh="square" onclick="pickShape(this)">⬛ Rounded Sq</button>
+      </div>
+      <input type="hidden" id="ovShape" value="circle"/>
+    </div>
+  </div>
+
+  <button class="gen-btn" id="genBtn" onclick="generate()">⚡ GENERATE</button>
+
+</aside>
+
+<!-- RIGHT STAGE -->
+<main class="stage">
+  <div class="preview-wrap">
+    <div class="qr-frame" id="qrFrame">
+      <div class="qr-placeholder" id="qrPH">
+        <div class="ph">⬛</div>
+        <p>Enter a URL to begin</p>
+      </div>
+      <canvas class="qr-canvas" id="qrCanvas" style="display:none"></canvas>
+      <div class="loading-overlay" id="loadOverlay"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- SCAN METER -->
+  <div class="scan-meter">
+    <div class="meter-title">◈ Real-time Scannability Analysis</div>
+    <div class="meter-body">
+      <div class="mstat c1"><div class="ml">EC Level</div><div class="mv" id="mEC">—</div></div>
+      <div class="mstat c2"><div class="ml">Recovery</div><div class="mv" id="mRec">—</div></div>
+      <div class="mstat c3"><div class="ml">QR Version</div><div class="mv" id="mVer">—</div></div>
+      <div class="mstat"><div class="ml">Modules</div><div class="mv" id="mMod">—</div></div>
+    </div>
+
+    <div class="scanbar-wrap">
+      <div class="scanbar-labels">
+        <span>Scannability Score</span>
+        <span id="scanScore">—</span>
+      </div>
+      <div class="scanbar-track">
+        <div class="scanbar-fill" id="scanFill" style="width:0%;background:var(--border2)"></div>
+      </div>
+    </div>
+
+    <div class="scan-verdict idle" id="scanVerdict">
+      <span id="svIcon">◈</span>
+      <span id="svText">Generate a QR code to see real-time scan analysis.</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar">
+    <button class="dl-btn" id="dlBtn" onclick="downloadQR()">↓ Download PNG</button>
+    <div class="auto-badge">● AUTO-REFRESH ON</div>
+  </div>
+</main>
+
+</div><!-- shell -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let currentB64 = null;
+let regenTimer  = null;
+let lastParams  = {};
+let isGenerating = false;
+let savedOvFile  = null;  // keep the file across debounced calls
+
+// ════════════════════════════════════════════
+//  SECTION COLLAPSE
+// ════════════════════════════════════════════
+function toggleSec(hdr){
+  const body  = hdr.nextElementSibling;
+  const arrow = hdr.querySelector('.sec-arrow');
+  const isOpen = body.classList.contains('open');
+  if(isOpen){
+    body.style.maxHeight = body.scrollHeight+'px';
+    requestAnimationFrame(()=>{
+      body.style.maxHeight='0px';
+      body.classList.replace('open','closed');
+      arrow.style.transform='rotate(-90deg)';
+    });
+  } else {
+    body.classList.replace('closed','open');
+    body.style.maxHeight = '600px';
+    arrow.style.transform='rotate(0deg)';
+  }
+}
+
+// ════════════════════════════════════════════
+//  COLOUR SYNC
+// ════════════════════════════════════════════
+function syncColor(w){
+  document.getElementById(w+'Hex').value = document.getElementById(w+'Pick').value;
+}
+function syncHex(w){
+  const v = document.getElementById(w+'Hex').value;
+  if(/^#[0-9a-fA-F]{6}$/.test(v)) document.getElementById(w+'Pick').value=v;
+}
+function syncDotColor(){
+  document.getElementById('dotColorHex').value = document.getElementById('dotColorPick').value;
+}
+function syncDotColorHex(){
+  const v = document.getElementById('dotColorHex').value;
+  if(/^#[0-9a-fA-F]{6}$/.test(v)) document.getElementById('dotColorPick').value=v;
+}
+function applyPreset(fg,bg){
+  document.getElementById('fgPick').value=fg;
+  document.getElementById('fgHex').value=fg;
+  document.getElementById('bgPick').value=bg;
+  document.getElementById('bgHex').value=bg;
+  triggerRegen();
+}
+
+// ════════════════════════════════════════════
+//  EC / STYLE / SHAPE PICKERS
+// ════════════════════════════════════════════
+function pickEC(el){
+  document.querySelectorAll('.ecb').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('ecLevel').value = el.dataset.ec;
+  triggerRegen();
+}
+function pickStyle(el){
+  document.querySelectorAll('#styleGrid .pill').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('styleVal').value = el.dataset.s;
+  triggerRegen();
+}
+function pickShape(el){
+  document.querySelectorAll('.shapebtn').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+  document.getElementById('ovShape').value = el.dataset.sh;
+  triggerRegen();
+}
+
+// ════════════════════════════════════════════
+//  URL VALIDATION
+// ════════════════════════════════════════════
+function onUrlChange(){
+  const v = document.getElementById('urlInput').value.trim();
+  const ok = document.getElementById('urlOk');
+  const valid = /^https?:\/\/(([a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,})(\/[^\s]*)?$/.test(v);
+  ok.textContent = v ? (valid?'✅':'❌') : '';
+  ok.style.opacity = v ? '1' : '0';
+  if(valid) triggerRegen();
+  else updateTopScan('idle','Waiting for valid URL');
+}
+
+// ════════════════════════════════════════════
+//  FILE OVERLAY
+// ════════════════════════════════════════════
+function previewOv(inp){
+  if(!inp.files||!inp.files[0]) return;
+  savedOvFile = inp.files[0];
+  const r = new FileReader();
+  r.onload = e=>{
+    const img = document.getElementById('dropPrev');
+    img.src = e.target.result; img.classList.add('show');
+    document.getElementById('dropIcon').style.display='none';
+    document.getElementById('dropTitle').textContent = inp.files[0].name;
+    document.getElementById('dropSub').textContent  = 'Click to change · auto-cropped 1:1';
+  };
+  r.readAsDataURL(inp.files[0]);
+  triggerRegen();
+}
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{
+  e.preventDefault();dz.classList.remove('drag');
+  const fi = document.getElementById('ovFile');
+  const dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]);
+  fi.files = dt.files; previewOv(fi);
+});
+
+// ════════════════════════════════════════════
+//  DOT PREVIEW CANVAS
+// ════════════════════════════════════════════
+function updateDotPreview(){
+  const c   = document.getElementById('dotPreview');
+  const ctx = c.getContext('2d');
+  c.width  = c.offsetWidth  * devicePixelRatio || 320;
+  c.height = c.offsetHeight * devicePixelRatio || 80;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = c.offsetWidth, H = c.offsetHeight;
+
+  const size   = parseInt(document.getElementById('dotSize').value)/100;
+  const gap    = parseInt(document.getElementById('dotGap').value)/100;
+  const opacity= parseInt(document.getElementById('dotOp').value)/100;
+  const useCol = document.getElementById('dotColorOn').checked;
+  const col    = useCol ? document.getElementById('dotColorHex').value : document.getElementById('fgHex').value;
+  const bg     = document.getElementById('bgHex').value;
+
+  document.getElementById('dotSizeV').textContent = document.getElementById('dotSize').value+'%';
+  document.getElementById('dotGapV').textContent  = document.getElementById('dotGap').value+'%';
+  document.getElementById('dotOpV').textContent   = document.getElementById('dotOp').value+'%';
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0,0,W,H);
+
+  const cellSize = H * 0.7;
+  const count    = Math.floor(W / (cellSize + 4)) + 1;
+  const pattern  = [1,1,0,1,1,0,1,0,1,1,1,0,1,1,0,1];
+
+  for(let i=0;i<count;i++){
+    if(!pattern[i % pattern.length]) continue;
+    const x = i*(cellSize+4) + (cellSize*(1-size))/2;
+    const y = (H - cellSize*size)/2;
+    const d = cellSize*size;
+    const g = d * gap;
+    const fd = d - g;
+    ctx.globalAlpha = opacity;
+    ctx.fillStyle   = col;
+    const r = fd * 0.25;
+    ctx.beginPath();
+    ctx.roundRect(x+g/2, y+g/2, fd, fd, r);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+window.addEventListener('load', updateDotPreview);
+window.addEventListener('resize', updateDotPreview);
+
+// ════════════════════════════════════════════
+//  DEBOUNCED REGEN
+// ════════════════════════════════════════════
+function triggerRegen(){
+  clearTimeout(regenTimer);
+  regenTimer = setTimeout(generate, 420);
+}
+
+// ════════════════════════════════════════════
+//  GENERATE
+// ════════════════════════════════════════════
+async function generate(){
+  const url = document.getElementById('urlInput').value.trim();
+  if(!url) return;
+  if(isGenerating){ clearTimeout(regenTimer); regenTimer=setTimeout(generate,600); return; }
+
+  const valid = /^https?:\/\/(([a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,})(\/[^\s]*)?$/.test(url);
+  if(!valid){ showToast('Invalid URL'); return; }
+
+  isGenerating = true;
+  document.getElementById('loadOverlay').classList.add('show');
+  document.getElementById('genBtn').classList.add('spinning');
+
+  const fd = new FormData();
+  fd.append('url',         url);
+  fd.append('fg_color',    document.getElementById('fgHex').value);
+  fd.append('bg_color',    document.getElementById('bgHex').value);
+  fd.append('ec_level',    document.getElementById('ecLevel').value);
+  fd.append('style',       document.getElementById('styleVal').value);
+  fd.append('size',        document.getElementById('sizeSlider').value);
+  fd.append('border',      document.getElementById('borderSlider').value);
+  fd.append('ov_shape',    document.getElementById('ovShape').value);
+  fd.append('ov_fraction', document.getElementById('ovSize').value/100);
+  fd.append('gradient',    document.getElementById('gradTog').checked);
+
+  // dot params (post-process on canvas)
+  const ovF = document.getElementById('ovFile');
+  if(savedOvFile) fd.append('overlay_image', savedOvFile);
+
+  try{
+    const res  = await fetch('/generate',{method:'POST',body:fd});
+    const data = await res.json();
+    if(data.error){ showToast(data.error); return; }
+
+    // Draw onto canvas with dot post-processing
+    await renderToCanvas(data.image);
+
+    currentB64 = data.image;
+
+    // Stats
+    document.getElementById('mEC').textContent  = data.ec_level + ' — ' + data.ec_name;
+    document.getElementById('mRec').textContent = data.ec_pct;
+    document.getElementById('mVer').textContent = 'v' + data.version;
+    document.getElementById('mMod').textContent = data.modules + '×' + data.modules;
+
+    updateScanMeter(data);
+    document.getElementById('dlBtn').classList.add('on');
+
+  } catch(e){
+    showToast('Server error — is Flask running on :5000?');
+  } finally {
+    isGenerating = false;
+    document.getElementById('loadOverlay').classList.remove('show');
+    document.getElementById('genBtn').classList.remove('spinning');
+  }
+}
+
+// ════════════════════════════════════════════
+//  CANVAS RENDER + DOT POST-PROCESS
+// ════════════════════════════════════════════
+async function renderToCanvas(b64src){
+  const canvas = document.getElementById('qrCanvas');
+  const ctx    = canvas.getContext('2d');
+  const frame  = document.getElementById('qrFrame');
+  const dim    = frame.offsetWidth;
+
+  canvas.width  = dim * devicePixelRatio;
+  canvas.height = dim * devicePixelRatio;
+  canvas.style.width  = dim+'px';
+  canvas.style.height = dim+'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const img = new Image();
+  await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=b64src; });
+  ctx.drawImage(img, 0, 0, dim, dim);
+
+  // dot controls post-processing
+  const dotSz  = parseInt(document.getElementById('dotSize').value)/100;
+  const dotGap = parseInt(document.getElementById('dotGap').value)/100;
+  const dotOp  = parseInt(document.getElementById('dotOp').value)/100;
+  const useCol = document.getElementById('dotColorOn').checked;
+
+  if(dotGap > 0 || dotOp < 1 || useCol){
+    applyDotPostProcess(ctx, dim, dotSz, dotGap, dotOp, useCol);
+  }
+
+  document.getElementById('qrPH').style.display='none';
+  canvas.style.display='block';
+}
+
+function applyDotPostProcess(ctx, dim, dotSz, dotGap, dotOp, useCol){
+  // We analyse the existing canvas and re-render dark pixels with gap/opacity
+  const imgData = ctx.getImageData(0, 0, dim*devicePixelRatio, dim*devicePixelRatio);
+  const d = imgData.data;
+  const W = imgData.width, H = imgData.height;
+
+  // Sample pixel brightness and reduce opacity / add gap uniformly
+  for(let i=0;i<d.length;i+=4){
+    const r=d[i],g=d[i+1],b=d[i+2];
+    const bright = (r+g+b)/3;
+    if(bright < 128){
+      // dark module pixel
+      if(useCol){
+        const col = hexToRgb(document.getElementById('dotColorHex').value);
+        d[i]=col[0]; d[i+1]=col[1]; d[i+2]=col[2];
+      }
+      d[i+3] = Math.round(d[i+3] * dotOp);
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // Gap: shrink modules — draw a grid of bg-coloured thin lines
+  if(dotGap > 0){
+    const bgCol = document.getElementById('bgHex').value;
+    ctx.fillStyle = bgCol;
+    ctx.globalAlpha = dotGap * 0.9;
+    const step = dim / 45;
+    for(let x=0;x<dim;x+=step){
+      ctx.fillRect(x-step*dotGap*0.5, 0, step*dotGap, dim);
+    }
+    for(let y=0;y<dim;y+=step){
+      ctx.fillRect(0, y-step*dotGap*0.5, dim, step*dotGap);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+function hexToRgb(h){
+  h=h.lstrip('#');
+  return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+}
+String.prototype.lstrip = function(c){ return this.replace(new RegExp('^'+c),''); };
+
+// ════════════════════════════════════════════
+//  SCAN METER
+// ════════════════════════════════════════════
+function updateScanMeter(data){
+  const ec  = data.ec_level;
+  const cov = data.overlay_coverage || 0;
+  const ecThreshold = {L:7,M:15,Q:25,H:30};
+  const threshold   = ecThreshold[ec] || 30;
+
+  // Score: 100 = perfect, reduced by coverage vs threshold, EC level, etc.
+  let score = 100;
+  if(cov > 0){
+    const ratio = cov / threshold;
+    score = Math.max(0, Math.round(100 - ratio * 40));
+  }
+  // Penalise low EC
+  if(ec==='L') score = Math.min(score, 70);
+  if(ec==='M') score = Math.min(score, 85);
+
+  const fill  = document.getElementById('scanFill');
+  const pct   = score;
+  fill.style.width = pct+'%';
+
+  let fillCol;
+  if(pct>=80) fillCol='var(--ok)';
+  else if(pct>=50) fillCol='var(--warn)';
+  else fillCol='var(--danger)';
+  fill.style.background = fillCol;
+
+  document.getElementById('scanScore').textContent = pct+'%';
+
+  const verdict = document.getElementById('scanVerdict');
+  const icon    = document.getElementById('svIcon');
+  const text    = document.getElementById('svText');
+
+  if(pct>=80){
+    verdict.className='scan-verdict good';
+    icon.textContent='✔';
+    text.textContent='Highly Scannable — QR code is robust and should scan in any condition.';
+    updateTopScan('good','Highly Scannable');
+  } else if(pct>=50){
+    verdict.className='scan-verdict warn';
+    icon.textContent='⚠';
+    text.textContent='Possibly Scannable — test before deploying. Consider increasing EC level to H.';
+    updateTopScan('warn','Scan Risk — Check Settings');
+  } else {
+    verdict.className='scan-verdict bad';
+    icon.textContent='✖';
+    text.textContent='Poor Scannability — overlay too large or EC too low. Switch to H and reduce overlay.';
+    updateTopScan('bad','Not Reliably Scannable');
+  }
+}
+
+function updateTopScan(state, text){
+  const el = document.getElementById('topScan');
+  const tx = document.getElementById('topScanText');
+  el.className = 'scan-indicator ' + state;
+  tx.textContent = text;
+}
+
+// ════════════════════════════════════════════
+//  DOWNLOAD
+// ════════════════════════════════════════════
+async function downloadQR(){
+  if(!currentB64) return;
+  const res  = await fetch('/download',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({image:currentB64})
+  });
+  const blob = await res.blob();
+  const a    = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'qr_code.png'; a.click();
+}
+
+// ════════════════════════════════════════════
+//  TOAST
+// ════════════════════════════════════════════
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+</script>
+</body>
+</html>
